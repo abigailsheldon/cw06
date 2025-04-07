@@ -56,30 +56,18 @@ Future<void> _ensureSignedIn() async {
 }
 
 class MyApp extends StatelessWidget {
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Task Manager',
       theme: ThemeData(
-        
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: FutureBuilder(
-        future: _ensureSignedIn(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Scaffold(body: Center(child: CircularProgressIndicator()));
-          } else {
-            return TaskListScreen();
-          }
-        },
-      ),
-
+      home: TaskListScreen(),
     );
   }
 }
+
 
 class TaskListScreen extends StatefulWidget {
   @override
@@ -90,6 +78,19 @@ class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _taskController = TextEditingController();
   String _priority = 'Medium';
   String? get _userId => FirebaseAuth.instance.currentUser?.uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _waitForAuth();
+  }
+
+  void _waitForAuth() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
+    setState(() {}); // Triggers UI refresh after login
+  }
 
 
   void _addTask(){
