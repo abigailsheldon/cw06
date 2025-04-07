@@ -77,56 +77,29 @@ class TaskListScreen extends StatefulWidget {
 class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _taskController = TextEditingController();
   String _priority = 'Medium';
-  String? get _userId => FirebaseAuth.instance.currentUser?.uid;
 
-  @override
-  void initState() {
-    super.initState();
-    _waitForAuth();
-  }
-
-  void _waitForAuth() async {
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
-    setState(() {}); // Triggers UI refresh after login
-  }
-
-
-  void _addTask(){
-  if (_taskController.text.trim().isEmpty) return;
+  void _addTask(String userId) {
+    if (_taskController.text.trim().isEmpty) return;
     FirebaseFirestore.instance.collection('tasks').add({
       'name': _taskController.text.trim(),
       'isCompleted': false,
       'priority': _priority,
-      'userId': _userId,
+      'userId': userId,
     });
     _taskController.clear();
     setState(() => _priority = 'Medium');
   }
 
-  void _toggleTask(Task task){
+  void _toggleTask(Task task) {
     FirebaseFirestore.instance
         .collection('tasks')
         .doc(task.id)
         .update({'isCompleted': !task.isCompleted});
   }
 
-  void _deleteTask(Task task){
+  void _deleteTask(Task task) {
     FirebaseFirestore.instance.collection('tasks').doc(task.id).delete();
   }
-
-  Stream<List<Task>>? _getTasks() {
-    if (_userId == null) return null;
-    return FirebaseFirestore.instance
-        .collection('tasks')
-        .where('userId', isEqualTo: _userId)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Task.fromMap(doc.id, doc.data()))
-            .toList());
-  }
-
 
   Color _getPriorityColor(String priority) {
     switch (priority) {
@@ -139,74 +112,101 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
+  // Build the UI by listening to FirebaseAuth state changes
   @override
-  Widget build(BuildContext context){
-    
-    if (_userId == null) {
-      return Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-      );
-    }
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnapshot) {
+        
+        // While waiting for authentication, show a spinner.
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        // If no user is signed in, trigger anonymous sign-in and show spinner
+        if (!authSnapshot.hasData) {
+          FirebaseAuth.instance.signInAnonymously();
+          return Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(title: Text('My Tasks')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _taskController,
-                  decoration: InputDecoration(
-                    labelText: 'Enter task name',
-                    border: OutlineInputBorder(),
-                  ),
+        // Once authenticated, get the userId
+        final userId = authSnapshot.data!.uid;
+
+        return Scaffold(
+          appBar: AppBar(title: Text('My Tasks')),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _taskController,
+                        decoration: InputDecoration(
+                          labelText: 'Enter task name',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    DropdownButton<String>(
+                      value: _priority,
+                      onChanged: (val) => setState(() => _priority = val!),
+                      items: ['High', 'Medium', 'Low']
+                          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                          .toList(),
+                    ),
+                    IconButton(icon: Icon(Icons.add), onPressed: () => _addTask(userId)),
+                  ],
                 ),
               ),
-              SizedBox(width: 8),
-              DropdownButton<String>(
-                value: _priority,
-                onChanged: (val) => setState(() => _priority = val!),
-                items: ['High', 'Medium', 'Low']
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-              ),
-              IconButton(icon: Icon(Icons.add), onPressed: _addTask),
-            ]),
-          ),
-          Expanded(
-            child: StreamBuilder<List<Task>>(
-              stream: _getTasks(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
-                final tasks = snapshot.data!;
-                return ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (_, i) {
-                    final task = tasks[i];
-                    return ListTile(
-                      leading: Checkbox(
-                        value: task.isCompleted,
-                        onChanged: (_) => _toggleTask(task),
-                      ),
-                      title: Text(task.name),
-                      subtitle: Text('Priority: ${task.priority}'),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () => _deleteTask(task),
-                      ),
-                      tileColor: task.isCompleted
-                          ? Colors.grey[300]
-                          : _getPriorityColor(task.priority).withValues(alpha: 0.1),
+              Expanded(
+                child: StreamBuilder<List<Task>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('tasks')
+                      .where('userId', isEqualTo: userId)
+                      .snapshots()
+                      .map((snapshot) => snapshot.docs
+                          .map((doc) => Task.fromMap(doc.id, doc.data()))
+                          .toList()),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData)
+                      return Center(child: CircularProgressIndicator());
+                    final tasks = snapshot.data!;
+                    return ListView.builder(
+                      itemCount: tasks.length,
+                      itemBuilder: (_, i) {
+                        final task = tasks[i];
+                        return ListTile(
+                          leading: Checkbox(
+                            value: task.isCompleted,
+                            onChanged: (_) => _toggleTask(task),
+                          ),
+                          title: Text(task.name),
+                          subtitle: Text('Priority: ${task.priority}'),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () => _deleteTask(task),
+                          ),
+                          tileColor: task.isCompleted
+                              ? Colors.grey[300]
+                              : _getPriorityColor(task.priority).withValues(alpha: 0.1),
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
