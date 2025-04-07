@@ -70,18 +70,29 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
+  final TextEditingController _taskController = TextEditingController();
+  String _priority = 'Medium';
+  String get _userId => FirebaseAuth.instance.currentUser!.uid;
 
 
   void _addTask(){
-
+  if (_taskController.text.trim().isEmpty) return;
+    FirebaseFirestore.instance.collection('tasks').add({
+      'name': _taskController.text.trim(),
+      'isCompleted': false,
+      'priority': _priority,
+      'userId': _userId,
+    });
+    _taskController.clear();
+    setState(() => _priority = 'Medium');
   }
 
   void _toggleTask(){
     
   }
 
-  void _deleteTask(){
-
+  void _deleteTask(Task task){
+    FirebaseFirestore.instance.collection('tasks').doc(task.id).delete();
   }
 
   Stream<List<Task>> _getTasks() {
