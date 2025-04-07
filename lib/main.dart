@@ -87,8 +87,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
     setState(() => _priority = 'Medium');
   }
 
-  void _toggleTask(){
-    
+  void _toggleTask(Task task){
+    FirebaseFirestore.instance
+        .collection('tasks')
+        .doc(task.id)
+        .update({'isCompleted': !task.isCompleted});
   }
 
   void _deleteTask(Task task){
@@ -96,15 +99,87 @@ class _TaskListScreenState extends State<TaskListScreen> {
   }
 
   Stream<List<Task>> _getTasks() {
-
+    return FirebaseFirestore.instance
+        .collection('tasks')
+        .where('userId', isEqualTo: _userId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Task.fromMap(doc.id, doc.data()))
+            .toList());
   }
 
   Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'High':
+        return Colors.red;
+      case 'Low':
+        return Colors.green;
+      default:
+        return Colors.orange;
+    }
   }
 
   @override
   Widget build(BuildContext context){
-
-
+    return Scaffold(
+      appBar: AppBar(title: Text('My Tasks')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _taskController,
+                  decoration: InputDecoration(
+                    labelText: 'Enter task name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              SizedBox(width: 8),
+              DropdownButton<String>(
+                value: _priority,
+                onChanged: (val) => setState(() => _priority = val!),
+                items: ['High', 'Medium', 'Low']
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+              ),
+              IconButton(icon: Icon(Icons.add), onPressed: _addTask),
+            ]),
+          ),
+          Expanded(
+            child: StreamBuilder<List<Task>>(
+              stream: _getTasks(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+                final tasks = snapshot.data!;
+                return ListView.builder(
+                  itemCount: tasks.length,
+                  itemBuilder: (_, i) {
+                    final task = tasks[i];
+                    return ListTile(
+                      leading: Checkbox(
+                        value: task.isCompleted,
+                        onChanged: (_) => _toggleTask(task),
+                      ),
+                      title: Text(task.name),
+                      subtitle: Text('Priority: ${task.priority}'),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete),
+                        onPressed: () => _deleteTask(task),
+                      ),
+                      tileColor: task.isCompleted
+                          ? Colors.grey[300]
+                          : _getPriorityColor(task.priority).withValues(alpha: 0.1),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
