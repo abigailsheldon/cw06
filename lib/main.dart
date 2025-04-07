@@ -48,6 +48,13 @@ class Task {
   }
 }
 
+Future<void> _ensureSignedIn() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    await FirebaseAuth.instance.signInAnonymously();
+  }
+}
+
 class MyApp extends StatelessWidget {
 
   // This widget is the root of your application.
@@ -59,7 +66,17 @@ class MyApp extends StatelessWidget {
         
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: TaskListScreen(),
+      home: FutureBuilder(
+        future: _ensureSignedIn(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Scaffold(body: Center(child: CircularProgressIndicator()));
+          } else {
+            return TaskListScreen();
+          }
+        },
+      ),
+
     );
   }
 }
@@ -72,7 +89,7 @@ class TaskListScreen extends StatefulWidget {
 class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _taskController = TextEditingController();
   String _priority = 'Medium';
-  String get _userId => FirebaseAuth.instance.currentUser!.uid;
+  String? get _userId => FirebaseAuth.instance.currentUser?.uid;
 
 
   void _addTask(){
@@ -98,7 +115,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
     FirebaseFirestore.instance.collection('tasks').doc(task.id).delete();
   }
 
-  Stream<List<Task>> _getTasks() {
+  Stream<List<Task>>? _getTasks() {
+    if (_userId == null) return null;
     return FirebaseFirestore.instance
         .collection('tasks')
         .where('userId', isEqualTo: _userId)
@@ -107,6 +125,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             .map((doc) => Task.fromMap(doc.id, doc.data()))
             .toList());
   }
+
 
   Color _getPriorityColor(String priority) {
     switch (priority) {
@@ -121,6 +140,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
   @override
   Widget build(BuildContext context){
+    
+    if (_userId == null) {
+      return Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text('My Tasks')),
       body: Column(
