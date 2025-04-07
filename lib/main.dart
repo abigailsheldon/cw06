@@ -79,6 +79,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
   String _priority = 'Medium';
 
   void _addTask(String userId) {
+    print("Adding task for user: $userId");
     if (_taskController.text.trim().isEmpty) return;
     FirebaseFirestore.instance.collection('tasks').add({
       'name': _taskController.text.trim(),
@@ -89,6 +90,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     _taskController.clear();
     setState(() => _priority = 'Medium');
   }
+
 
   void _toggleTask(Task task) {
     FirebaseFirestore.instance
