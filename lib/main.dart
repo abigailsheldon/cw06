@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 
 // cw06-bb5d5 (Firebase ID)
+// android   1:90390837114:android:ec2702c66b8b9865f148c3
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
